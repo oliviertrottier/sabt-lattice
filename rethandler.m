@@ -1,4 +1,4 @@
-function rethandler11(MovingBranchesIDs)
+function rethandler(MovingBranchesIDs)
 % Function that handles the full retraction of branches.
 global tree
 global occ
@@ -27,7 +27,6 @@ for i = 1:NBranches
         tree(ParID).DaughtersID = [tree(SisID).DaughtersID];
         tree(ParID).Tau = tree(SisID).Tau;
         tree(ParID).Theta = tree(SisID).Theta;
-        tree(ParID).GrowthDelay = tree(SisID).GrowthDelay;
         tree(ParID).State = tree(SisID).State;
         
         % Update the parent ID of the daughters.

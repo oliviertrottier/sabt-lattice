@@ -49,23 +49,22 @@ for i = 1:N_options
     options.(options_name{i}) = optionsvalue(i);
 end
 %%
-% Set the minimal number of branches(minB), the maximum length(maxL)
-% of each branch and the initial number of branches at the soma (NBSoma).
+% Set the maximal number of time steps.
 if options.MaxT > 0
     MaxT = options.MaxT;
 else
     MaxT = 1200;
 end
 
-% Determine the number of branches at the soma and the start of growth.
+% Determine the number of branches at the soma.
 NBSoma = 3;
-GrowthStartTime = 5;
 
-% Sample of the number of new growths at each time.
+% Determine the number of new growths at each time.
 growthspertime = random('poisson', gamma, 1, MaxT - 1);
 
 % Define the maximal number of branches and growths.
-MaxB = sum(2 * growthspertime(GrowthStartTime:end)) + NBSoma;
+BranchingStartTime = 5;
+MaxB = sum(2 * growthspertime(BranchingStartTime:end)) + NBSoma;
 MaxG = ceil(MaxT * MaxB);
 MaxL = round(500 / gamma);
 
@@ -84,37 +83,37 @@ if isempty(L) || L ~= MaxT + 100
     y = y .* dy;
 end
 
-% Check if the lattice is bigger than the integer format (int16).
+% Check if the lattice is smaller than the largest int16 integer.
 if any(size(x) > 2 ^ 15)
     error('Error! The size of the lattice is bigger than 2^15.')
 end
 
-% Create the folders where the outputs will be saved.
+% Create a folder where the outputs will be saved.
 savingfolder = cell2mat(regexp(mfilename('fullpath'), '/.*/', 'match'));
 if isdir(savingfolder) == 0
     mkdir(savingfolder);
 end
 
-% Sample the retraction lengths, branching frequency and delay time.
+% Sample the retraction lengths and branching frequency and delay time.
 retractionlengths = round(random('exp', alpha, 1, MaxB));
 delta_theta = sqrt(d / (beta / 2)) * randn(MaxG, 1);
 
 % Initialize the matrix that records the collision's position.
 CollisionsPos = zeros(MaxB, 3);
 
-% Define the array "occ" that will track the occupation of each lattice point. To
-% prevent the walk from hitting the boundary, the boundaries are occupied.
+% Define an array that will track the occupation of each lattice point.
 % 0 corresponds to a free site.
-% 1 corresponds to an occupied site.
-% 2 corresponds to a branch point.
-BPocc = - 1; % ID number to use for branch points.
+% >=1 corresponds to an occupied site. The number indicates the branch ID
+% that the site belongs to.
+% BPocc defines the occupaction ID of a branch point.
+BPocc = - 1;
 occ = sparse(ceil((N + 1) / 2), ceil((N + 1) / 2), BPocc, N + 1, N + 1);
 
-% Define the weights update range in the x and y directions.
+% Define the neighbours' search range in the x and y directions.
 xupdrng = 2;
 yupdrng = 2;
 
-% Define the neighbours' indices.
+% Define the neighbours' vectors on a triangular lattice
 neighbours_vec = int16([-1 1; -2 0; -1 -1; 1 -1; 2 0; 1 1]);
 neighbours_ind = int16(sub2ind(2 * [xupdrng yupdrng] + 1, neighbours_vec(:, 1) + xupdrng + 1, neighbours_vec(:, 2) + yupdrng + 1));
 
@@ -124,16 +123,23 @@ rowmax = floor((N + 1) / 2 + L / dx) - xupdrng;
 colmin = ceil((N + 1) / 2 - L / dy) + yupdrng;
 colmax = floor((N + 1) / 2 + L / dy) - yupdrng;
 
-% Initialize the number of growing tips and branches.
+% Initialize the number of growing branches.
 NGrowths = NBSoma;
 GrowingBranchesIDs = 1:NBSoma;
 RetractingBranchesIDs = [];
 
-% Define a structure to keep track of the moving tips.
-tree = struct('PointsInd', cell(1, MaxB), 'TipPos', cell(1, MaxB), 'OriPos', cell(1, MaxB), ...
-  'ParentID', cell(1, MaxB), 'SisterID', cell(1, MaxB), 'DaughtersID', cell(1, MaxB), ...
-  'State', num2cell(zeros(1, MaxB)), 'Length', num2cell(zeros(1, MaxB, 'uint16')), ...
-  'Theta', cell(1, MaxB), 'Tau', cell(1, MaxB), 'GrowthDelay', cell(1, MaxB));
+% Define a structure to keep track of the tree branches.
+tree = struct(...
+    'PointsInd', cell(1, MaxB),... % Lattice indices of the points that form a branch.
+    'TipPos', cell(1, MaxB),... % Position of the branch tip.
+    'OriPos', cell(1, MaxB),... % Original Position of the branch tip.
+    'ParentID', cell(1, MaxB),... % ID of the parent branch.
+    'SisterID', cell(1, MaxB),... % ID of the sister branch.
+    'DaughtersID', cell(1, MaxB),... % ID of the daugther branches.
+    'State', num2cell(zeros(1, MaxB)),... % Growing (+1), shrinking (-1) or immobile (0).
+    'Length', num2cell(zeros(1, MaxB, 'uint16')),... % Length of the branch.
+    'Theta', cell(1, MaxB),... % Angle of growth.
+    'Tau', cell(1, MaxB)); % Remaining amount of branch length to retract.
 
 % Initialize the tree structure.
 [tree.PointsInd] = deal(zeros(5 * MaxL, 2, 'int16'));
@@ -160,7 +166,7 @@ mm2 = 0;
 
 %% Time loop
 for t=1:MaxT
-    % Randomize the growth order of the growing tips.
+    % Randomize the order of the moving branches.
     MovingBranchesIDs = [GrowingBranchesIDs RetractingBranchesIDs];
     NMovingBranches = numel(MovingBranchesIDs);
     GrowthOrder = randperm(NMovingBranches)';
@@ -182,8 +188,7 @@ for t=1:MaxT
             EnvironmentOcc = occ(minyInd:maxyInd, minxInd:maxxInd);
             NeighOcc = EnvironmentOcc(neighbours_ind);
 
-            % Perform the growth of the growing tip with a persistence
-            % length beta.
+            % Check if the growing branch hits another branch
             if any(NeighOcc == 0)
                 if Length < 1
                     % Select an empty site at random for the growth of the
@@ -213,8 +218,8 @@ for t=1:MaxT
                 occ(NewTipPos(1), NewTipPos(2)) = BranchID;
                 %occ(Neighbourslinind(NeighSel))=1;
 
-                % Update the tips structure with the new position, branch length
-                % and r value.
+                % Update the tree structure with the new tip position, branch length
+                % and angle.
                 tree(BranchID).TipPos = NewTipPos;
                 tree(BranchID).Length = Length + 1;
                 tree(BranchID).PointsInd(Length + 2, :) = NewTipPos;
@@ -222,8 +227,7 @@ for t=1:MaxT
 
             else
                 % If occvalue=1, the growing tip has hit another branch.
-                % Consequently, start the retraction of the tip by
-                % some amount "tau" sampled from an exponential distribution.
+                % Consequently, start the retraction of the tip.
                 if alpha > 0
                     mm = mm + 1;
                     tree(BranchID).State = - 1;
@@ -243,8 +247,8 @@ for t=1:MaxT
             % Update the occupancy and connectivity matrix.
             occ(TipPos(1), TipPos(2)) = 0;
 
-            % Update the tips structure with the new position and branch
-            % length.
+            % Update the tree structure with the new tip position, branch
+            % length and tau.
             tree(BranchID).Length = Length - 1;
             tree(BranchID).Tau = tree(BranchID).Tau - 1;
             tree(BranchID).TipPos = tree(BranchID).PointsInd(Length, :);
@@ -254,7 +258,7 @@ for t=1:MaxT
         end
     end
 
-    % Next, handle the full retraction of branches.
+    % Next, handle the full retraction of moving branches.
     ZeroLengthIDs = MovingBranchesIDs([tree(MovingBranchesIDs).Length] == 0);
     rethandler(ZeroLengthIDs);
 
@@ -296,7 +300,7 @@ for t=1:MaxT
     % selected as the branch point and a new moving tip is added at that point.
     TotalGrowths = growthspertime(t);
 
-    if TotalGrowths > 0 && t >= GrowthStartTime
+    if TotalGrowths > 0 && t >= BranchingStartTime
         [freeocc_rowInd, freeocc_colInd] = find(occ >= 1);
         NAvSites = size(freeocc_rowInd, 1);
         MaxGrowths = min(NAvSites, TotalGrowths);
@@ -313,7 +317,7 @@ for t=1:MaxT
             SeparatedBranchPointsInd = tree(SeparatedBranchID).PointsInd(1:SeparatedBranchLength + 1, :);
             [~, BranchPointPos] = ismember(BranchPointInd,SeparatedBranchPointsInd,'rows');
 
-            % If the branch points is located at the tip of one of the
+            % If the branch point is located at the tip of one of the
             % branches, simply start the growth of that branch.
             if BranchPointPos == SeparatedBranchLength + 1
                 tree(SeparatedBranchID).State = 1;
@@ -350,7 +354,7 @@ for t=1:MaxT
             tree(NewBranch2ID).OriPos = BranchPointInd;
             tree(NewBranch2ID).TipPos = BranchPointInd;
 
-            % Update the data of the separated branch's daughters.
+            % Update the separated branch's daughters IDs.
             DaughtersIndex = tree(SeparatedBranchID).DaughtersID;
             if ~ isempty(DaughtersIndex)
                 for iii = 1:numel(DaughtersIndex)
@@ -358,13 +362,13 @@ for t=1:MaxT
                 end
             end
 
-            % Update the data of the separated branch.
+            % Update info of the separated branch.
             tree(SeparatedBranchID).Length = BranchPointPos - 1;
             tree(SeparatedBranchID).DaughtersID = [NewBranch1ID NewBranch2ID];
             tree(SeparatedBranchID).State = 0;
             tree(SeparatedBranchID).TipPos = BranchPointInd;
 
-            % Update the occupancy matrix at the position of the branch
+            % Update the occupancy matrix with the position of the branch
             % point.
             occ(BranchPointInd(1), BranchPointInd(2)) = BPocc;
 
@@ -386,7 +390,7 @@ for t=1:MaxT
 
     end
 
-    % Find the new tips that are growing and retracting.
+    % Find the new set of branches that are growing and retracting.
     GrowingBranchesIDs = find([tree(1:NGrowths).State] == 1);
     RetractingBranchesIDs = find([tree(1:NGrowths).State] == - 1);
 end

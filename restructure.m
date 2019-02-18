@@ -1,4 +1,4 @@
-function tree = restructure11(treein)
+function tree = restructure(treein)
 % Function that restructures the input structure treein to remove
 % zero-length branches and unnecessary fields.
 tree = treein;
@@ -14,14 +14,15 @@ Color = 0;
 
 % Arrange the depths and color of the branches.
 while ~isempty(BranchesID)
-    % Assign the depth and color.
+    % Assign the depth.
     [tree(BranchesID).Depth] = deal(depth);
     [tree(BranchesID).Color] = deal([Color, 0, 0]);
     
-    % Find the daughters as the new branches.
+    % Find the branches of the next depth. These will be the daughters of
+    % all current branches.
     BranchesID = [tree(BranchesID).DaughtersID];
     
-    % Increment the depth and switch the color.
+    % Increment the depth.
     depth = depth + 1;
     Color = ~Color;
 end
@@ -70,7 +71,7 @@ for i = 1:NBranches
     end
 end
 
-% Check if all IDs have properly replaced.
+% Check if all IDs have properly been replaced.
 allIDs = cell2mat({[tree.ParentID], [tree.SisterID], [tree.DaughtersID]});
 if any(allIDs > NBranches)
     disp(['# Branches = ', NBranches])
