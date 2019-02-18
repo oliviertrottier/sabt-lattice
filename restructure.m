@@ -10,13 +10,11 @@ IDs = 1:NBranches;
 % Find the number of branches at the soma and initialize their depth to 1.
 BranchesID = find([tree.ParentID] == 0);
 depth = 1;
-Color = 0;
 
 % Arrange the depths and color of the branches.
 while ~isempty(BranchesID)
     % Assign the depth.
     [tree(BranchesID).Depth] = deal(depth);
-    [tree(BranchesID).Color] = deal([Color, 0, 0]);
     
     % Find the branches of the next depth. These will be the daughters of
     % all current branches.
@@ -24,7 +22,6 @@ while ~isempty(BranchesID)
     
     % Increment the depth.
     depth = depth + 1;
-    Color = ~Color;
 end
 
 % Remove the branches of zero length and recount the number of branches.
