@@ -195,28 +195,27 @@ for t=1:MaxT
                     % first point.
                     NeighSel = randsample(1:6, 1, true, full(NeighOcc == 0));
                     Theta = pi / 3 * (NeighSel - 1) + pi / 6;
-                    occvalue = 0;
+                    collision = false;
                 else
                     % Determine the growth angle and round it to the
                     % closest integer multiple of pi/3 (60 deg).
                     ll = ll + 1;
                     Theta = tree(BranchID).Theta + delta_theta(ll);
                     NeighSel = round((mod(Theta, 2 * pi) - pi / 6) / (pi / 3) + 1);
-                    occvalue = NeighOcc(NeighSel);
+                    collision = NeighOcc(NeighSel)~=0;
                 end
             else
                 % In this case, all neigbouring lattice points are occupied.
-                occvalue = 1;
+                collision = true;
             end
 
             % Check for collision of the tip.
-            if occvalue == 0
+            if ~collision
                 % Find the new position of the tip.
                 NewTipPos = TipPos + neighbours_vec(NeighSel, :);
 
                 % Update the occupancy matrix.
                 occ(NewTipPos(1), NewTipPos(2)) = BranchID;
-                %occ(Neighbourslinind(NeighSel))=1;
 
                 % Update the tree structure with the new tip position, branch length
                 % and angle.
@@ -226,8 +225,7 @@ for t=1:MaxT
                 tree(BranchID).Theta = Theta;
 
             else
-                % If occvalue=1, the growing tip has hit another branch.
-                % Consequently, start the retraction of the tip.
+                % When there is collision, start the retraction of the branch.
                 if alpha > 0
                     mm = mm + 1;
                     tree(BranchID).State = - 1;
@@ -241,10 +239,10 @@ for t=1:MaxT
                 end
             end
 
-            % If BranchState~=1, then BranchState=-1. In this case, check
+            % If BranchState ~= 1, then BranchState = -1. In this case, check
             % if the retraction is still ongoing (tau > 0).
         elseif tree(BranchID).Tau > 0
-            % Update the occupancy and connectivity matrix.
+            % Update the occupancy matrix.
             occ(TipPos(1), TipPos(2)) = 0;
 
             % Update the tree structure with the new tip position, branch
