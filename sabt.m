@@ -132,7 +132,7 @@ RetractingBranchesIDs = [];
 tree = struct(...
     'PointsInd', cell(1, MaxB),... % Lattice indices of the points that form a branch.
     'TipPos', cell(1, MaxB),... % Position of the branch tip.
-    'OriPos', cell(1, MaxB),... % Original Position of the branch tip.
+    'OriPos', cell(1, MaxB),... % Original position of the branch tip. This also corresponds to the branch point position.
     'ParentID', cell(1, MaxB),... % ID of the parent branch.
     'SisterID', cell(1, MaxB),... % ID of the sister branch.
     'DaughtersID', cell(1, MaxB),... % ID of the daugther branches.
