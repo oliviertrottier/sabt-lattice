@@ -22,7 +22,7 @@ dbstop if error;
 
 % Define the persistent variables.
 %persistent d dy dx L N x y MaxL NBSoma MaxG MinB GrowthStartTime
-persistent d dy dx L N x y
+%persistent d dy dx L N x y
 global tree occ
 %% Options Handling
 % Determine the input options with error handling when the input options
@@ -70,18 +70,16 @@ MaxL = round(500 / gamma);
 
 % Construct the triangular lattice.
 % The y value decreases with increasing row number.
-if isempty(L) || L ~= MaxT + 100
-    % Make the size of the lattice large enough so no branches hit the
-    % boundary.
-    L = MaxT + 100;
-    d = 1;
-    dy = d / 2;
-    dx = sqrt(3) / 2 * d;
-    N = round(2 * L / dy);
-    [x, y] = meshgrid(- N / 2:1:N / 2, N / 2: - 1: - N / 2);
-    x = x .* dx;
-    y = y .* dy;
-end
+% Make the size of the lattice large enough so no branches hit the
+% boundary.
+L = MaxT + 100;
+d = 1;
+dy = d / 2;
+dx = sqrt(3) / 2 * d;
+N = round(2 * L / dy);
+[x, y] = meshgrid(- N / 2:1:N / 2, N / 2: - 1: - N / 2);
+x = x .* dx;
+y = y .* dy;
 
 % Check if the lattice is smaller than the largest int16 integer.
 if any(size(x) > 2 ^ 15)
@@ -163,7 +161,6 @@ end
 ll = 0;
 mm = 0;
 mm2 = 0;
-
 %% Time loop
 for t=1:MaxT
     % Randomize the order of the moving branches.
